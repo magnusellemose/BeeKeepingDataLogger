@@ -26,9 +26,14 @@ double temp;
 int hum;
 
 void setup() {
+     // Starts Serial at 9600
     Serial.begin(9600);
+    // Clears all saved data in excel. 
+  //  Serial.println("CLEARDATA");
+    Serial.println("LABEL,DATE,TIME,ID,TEMPERATURE,HUMIDITY");
+    
 
-    Serial.println("SimpleRx Starting");
+ //   Serial.println("SimpleRx Starting");
     radio.begin();
     radio.setDataRate( RF24_250KBPS );
     radio.openReadingPipe(1, thisSlaveAddress);
@@ -52,35 +57,37 @@ void getData(){
 //if new data has been received (newData == true), the data is parsed and put into variables
 void showData(){
 if(newData == true){
-  Serial.print("Data received, received the array: ");
-  Serial.println(dr);
-
+//  Serial.print("Data received, received the array: ");
+//  Serial.print(dr);
+Serial.print("DATA,DATE,TIME");
+Serial.print(",");
   //Assigns received id to an array and prints it
-  char idArray[2];
+   char idArray[2];
   idArray[0] = dr[0];
   idArray[1] = dr[1];
-  Serial.print("Id: ");
+ // Serial.print("ID: ");
   id = atoi(idArray);
-  Serial.println(id);
+  Serial.print(id);
+  Serial.print(",");
+  
   //Assigns received temperature to an array and prints it
   tempArray[0] = dr[2];
   tempArray[1] = dr[3];
   tempArray[2] = dr[4];
   tempArray[3] = '.';
   tempArray[4] = dr[5];
-  Serial.print("Temperature: ");
+ // Serial.print("Temperature: ");
   temp = atof(tempArray);
-  Serial.println(temp);
+  Serial.print(temp); Serial.print(",");
 
   //Assigns received humidity to an array and prints it
   humArray[0] = dr[6];
   humArray[1] = dr[7];
   humArray[2] = dr[8]; 
-  Serial.print("Humidity: ");
-  hum = atoi(humArray);
-  Serial.println(hum);
+ // Serial.print("Humidity: ");
+  hum = atoi(humArray);  Serial.println(hum);
   
-  Serial.println();
+ // Serial.println();
   newData = false;
   }
 }
