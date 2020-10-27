@@ -9,12 +9,14 @@ There are two people working on the project: one who does the software(me) and o
 
 
 //======================================================================//
+
 The initial plan of the project is to assist a local beekepper keeping track of the temperature and humidity of his currently 7 beehives. The amount of beehives is excepted to rise but not above 12 in the nearest future.
 
 If the project becomes a succes, another local beekeeper with more than 30 beehives would be willing to acquire the system.
 
 
 //======================================================================//
+
 The main programs for this project is:
 Arduino IDE:
 - To develop the code.
@@ -34,6 +36,7 @@ On some computers, it is necessary to install the CH340g driver to get unorigina
 
 
 //======================================================================//
+
 More technical description of the components:
 Transmitter:
 - Hardware components:
@@ -63,6 +66,7 @@ Intermediate transceiver
 
 
 //======================================================================//
+
 TODO
 Must have:
 Intermediate transceiver: receives data from up to 6 transmitters and sends the data to another transceiver or the receiver. Necessary because the receiver can't receive data from more than 6 transmitters or transceivers.
