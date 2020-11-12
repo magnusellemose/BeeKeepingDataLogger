@@ -1,19 +1,20 @@
+The work to be done on the project:
+https://trello.com/b/8H5htqbK/beekeepingdatalogger
+
 # BeeKeepingDataLogger
-The purpose of the project is to help a local beekeeper and to gain experience with working with new technologies and programming languages in a project. The purpose is NOT to make a profit.
+The purpose of the project is to help a local beekeeper and to gain experience with working with new technologies and programming languages in the context of a project. The purpose is NOT to make a profit.
 
-The goal of the project is to create a system that can measure the temperature and humidity of a set of beehives and log the data in a centralized computer, so the owner can see exactly when his bees start to become active again during the spring. When the bees start to become active again, they raise the temperature of the beehive from around 24 degrees celsius to above 30 degrees celsius. The humidity of the beehives is useful because if the humidity falls below 50%, no eggs are hatched. A healthy colony has a 
+The goal of the project is to create a system that can measure the temperature and humidity of a group of beehives and log the data in a centralized computer, so the owner can see exactly when his bees start to become active again during the spring. When the bees start to become active again, they raise the temperature of the beehive from around 24 degrees celsius to above 30 degrees celsius. The humidity of the beehives is useful because if the humidity falls below 50%, no eggs are hatched. 
 
-To accomplish this goal, Arduino hardware components and Arduino software are used to create transmitters and receivers (and intermediate transceiver later on). The transmitter exploits Arduino hardware components to measure the temperature and humidity of a beehive. The receiver exploits Arduino hardware components to receive data from transmitters and to log it in an Excel file.
+To accomplish this goal, Arduino hardware components and Arduino software are used to create transmitters, receivers and intermediate transceivers). The transmitter exploits Arduino hardware components to measure the temperature and humidity of a beehive. The receiver exploits Arduino hardware components to receive data from transmitters or intermediate transceivers and to log it in an Excel file. The intermediate transceiver exploits Arduino hardware components to receive data from transmitters or intermediate transceivers and to send the data forward to a receiver or an intermediate transceiver.
 
 There are two people working on the project: one who does the software(me) and one who does the hardware(my flatmate).
 
-
 //======================================================================//
 
-The initial plan of the project is to assist a local beekepper keeping track of the temperature and humidity of his currently 7 beehives. The amount of beehives is excepted to rise but not above 12 in the nearest future.
+The initial plan of the project is to assist a local beekepper keeping track of the temperature and humidity of his currently 7 beehives. The amount of beehives is excepted to rise but not above 12 (in the nearest future at least).
 
 If the project becomes a succes, another local beekeeper with more than 30 beehives would be willing to acquire the system.
-
 
 //======================================================================//
 
@@ -33,7 +34,6 @@ Microsoft Excel
 On some computers, it is necessary to install the CH340g driver to get unoriginal Arduino boards to work. It can be downloaded following this link: 
 - 32 bit: https://ardustore.dk/error/CH341SER_32_bit.zip 
 - 64 bit: https://ardustore.dk/error/CH341SER_64_bit.zip
-
 
 //======================================================================//
 
@@ -62,21 +62,11 @@ Receiver:
     - RF24
 
 Intermediate transceiver
-- Not in development yet but should work kind of like a mix between the transmitter and the receiver
-
+- Hardware components:
+    - Arduino board
+    - NRF24l01+ chip (to receive data)
+- Used libraries:
+    - nRF24L01
+    - RF24
 
 //======================================================================//
-
-TODO
-Must have:
-Intermediate transceiver: receives data from up to 6 transmitters and sends the data to another transceiver or the receiver. Necessary because the receiver can't receive data from more than 6 transmitters or transceivers.
-Receiver needs functionality to receive data from more than 1 transmitter, need to be able to receive data from 6 receivers
-- Transmitters needs functionality to send their measured data at different times so no sent data is lost
-The format of the transmitted data should be improved to be more effective and to take up less space
-Data that has to be set individually for the transmitters, transceivers and receivers should appear in the top so they are easier to configure
-
-Should have:
-The code for setting the alarms in the transmitter should be able to set an arbitrary amount of alarms at different times. Right now there can only be 2 alarms but the beekeeper could change his mind
-
-Could have:
-The receiver could check the received temperature and humidity to find out if the values are too high or too low. The temperature should not fall below 24 degrees or exeed 35 degrees. The humidity should not fall below 40% or exceed 80%. The receiver could send an SMS to the beekepper to alert him when the values are too high or too low. This could also be checked by the transmitters and shown physically at the beehives.
