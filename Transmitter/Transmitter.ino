@@ -1,6 +1,11 @@
 //Transmitter
 
 /////////////--- Place for varibles to change 
+const int transmitterId = 1; 
+//The address of the transmitter
+//TODO: is it really necessary to have this here?
+const byte transmitterAddress[5] = {'R','x','A','A','A'};
+
 // for testing, hours and minutes can be set here
 int testHour1 = 14;
 //int testHour2 = 14;
@@ -12,118 +17,105 @@ int testMinute2 = 2;
 //int hour2 = 16;
 //int minute1 = 0;
 //int minute2 = 0;
-/////////////---
 
 
-
+//////////////////////////////////////////////////////////
 // RTC includes
 #include <DS3232RTC.h>
 #include <avr/sleep.h>
-#define interruptPin 2 
-
-
 //NRF includes
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-
-
 //DHT includes
 #include "DHT.h"
 
+
+#define interruptPin 2 
 //NRF definitions
 #define CE_PIN  9
 #define CSN_PIN 10
-
 //DHT definitions
 #define DHTPIN 3 
 #define DHTTYPE DHT11 
+
 DHT dht(DHTPIN, DHTTYPE);
-
-//NRF constants
-const byte slaveAddress[5] = {'R','x','A','A','A'};
 RF24 radio(CE_PIN, CSN_PIN); // Create a Radio
-char dataToSend[9]; //testDataToSend = {'0','1','+','0','7','5','0','7','3'};
 
-//has to be unique for each transmitter and between 1 and 6
-//should be marked on the transmitter physically with a label
-const int transmitterId = 1;
+//The array used for received data
+char dataToSend[9]; 
+//char testDataToSend = {'0','1','+','0','7','5','0','7','3'};
 
 //time_t variable used when sleeping and rearming alarms
  time_t t;
 
+
 void setup() {
-//DHT setup
-    dht.begin();
+  //DHT setup
+  dht.begin();
 
-//RFC setup
-    pinMode(3,OUTPUT);
-    digitalWrite(3,HIGH);
-    Serial.begin(9600);
-    pinMode(7,OUTPUT); // NRF trnsistor pin
+  //RFC setup
+  pinMode(3,OUTPUT);
+  digitalWrite(3,HIGH);
+  Serial.begin(9600);
+  pinMode(7,OUTPUT); // NRF trnsistor pin
 
-// Initiates the Alarms, and refreshes them. 
-    pinMode(interruptPin,INPUT_PULLUP);
-    RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
-    RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
-    RTC.alarm(ALARM_1);
-    RTC.alarm(ALARM_2);
-    RTC.alarmInterrupt(ALARM_1, false);
-    RTC.alarmInterrupt(ALARM_2, false);
-    RTC.squareWave(SQWAVE_NONE);
+  //Initiates the Alarms, and refreshes them. 
+  pinMode(interruptPin,INPUT_PULLUP);
+  RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
+  RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
+  RTC.alarm(ALARM_1);
+  RTC.alarm(ALARM_2);
+  RTC.alarmInterrupt(ALARM_1, false);
+  RTC.alarmInterrupt(ALARM_2, false);
+  RTC.squareWave(SQWAVE_NONE);
+  
+  // Arms alarm 1 
+  RTC.setAlarm(ALM1_MATCH_HOURS,0,testMinute1,testHour1,0);
+  RTC.alarm(ALARM_1);
+  RTC.squareWave(SQWAVE_NONE);
+  RTC.alarmInterrupt(ALARM_1, true);
 
-// Arms alarm 1 
-    RTC.setAlarm(ALM1_MATCH_HOURS,0,testMinute1,testHour1,0);
-    RTC.alarm(ALARM_1);
-    RTC.squareWave(SQWAVE_NONE);
-    RTC.alarmInterrupt(ALARM_1, true);
-
-// Arms Alarm 2
-    RTC.setAlarm(ALM2_MATCH_HOURS,0,testMinute2,testHour1,0);
-    RTC.alarm(ALARM_2);
-    RTC.squareWave(SQWAVE_NONE);
-    RTC.alarmInterrupt(ALARM_2, true);
-    
-   
+  // Arms Alarm 2
+  RTC.setAlarm(ALM2_MATCH_HOURS,0,testMinute2,testHour1,0);
+  RTC.alarm(ALARM_2);
+  RTC.squareWave(SQWAVE_NONE);
+  RTC.alarmInterrupt(ALARM_2, true); 
 }
 
 void loop() {
-    initiateNRF();
+  initiateNRF();
     
-    measureAndSaveToArray();
+  measureAndSaveToArray();
     
-    send();
+  send();
     
-    sleepAndWakeUp();
+  sleepAndWakeUp();
 
-    rearmAlarms();
+  rearmAlarms();
 }
 
-//=====================================================================================//
-//Custom methods
-//=====================================================================================//
+//========================User defined methods========================//
 
 
 //Initiates the NRF chip, has to be done every time before sending the data
 //Also starts the interruptpin (pin 7)
 void initiateNRF(){
-    Serial.println("SimpleTx Starting");
-    digitalWrite(7,HIGH);
-    delay(10);
+  Serial.println("SimpleTx Starting");
+  digitalWrite(7,HIGH);
+  delay(10);
     
-    radio.begin();
-    radio.flush_tx();
-    radio.setAutoAck(true);
-    radio.setDataRate( RF24_250KBPS );
-    radio.setRetries(3,5); // delay, count
-    radio.stopListening();
-    radio.openWritingPipe(slaveAddress);
-    delay(10);
+  radio.begin();
+  radio.flush_tx();
+  radio.setAutoAck(true);
+  radio.setDataRate( RF24_250KBPS );
+  radio.setRetries(3,5); // delay, count
+  radio.stopListening();
+  radio.openWritingPipe(transmitterAddress);
+  delay(10);
 }
 
-
 //Measures humidity and temperature and converts them into the format expected from the receiver:
-//The format that the receiver can receive is: ['x','x','y','y','y','y','z','z','z'] where x=id, y=temperature, z=humidity
 void measureAndSaveToArray(){
   int hum = dht.readHumidity();
   float temp = dht.readTemperature();
@@ -193,16 +185,16 @@ void measureAndSaveToArray(){
 
 //tries to send the dataToSend
 void send() {
-    bool succeded = radio.write( &dataToSend, sizeof(dataToSend) );
-    Serial.print("Data Sent, sent the array: ");
-    Serial.print(dataToSend);
+  bool succeded = radio.write( &dataToSend, sizeof(dataToSend) );
+  Serial.print("Data Sent, sent the array: ");
+  Serial.print(dataToSend);
     
-    if (succeded) {
-        Serial.println("  Acknowledgement received, data sent succesfully");
-    }
-    else {
-        Serial.println("  Tx failed");
-    }
+  if (succeded) {
+      Serial.println("  Acknowledgement received, data sent succesfully");
+  }
+  else {
+      Serial.println("  Tx failed");
+  }
 }
 
 //Sets the interrupt, puts the transmitter to sleep and handles the waking up 
@@ -223,18 +215,17 @@ void sleepAndWakeUp(){
   //Prints the time when the sleep process is interrupted and the transmitter wakes up
   t=RTC.get();
   Serial.println("Vågen nu, klokken er: "+String(hour(t))+":"+String(minute(t))+":"+String(second(t)));
- 
 }
 
 //Rearms the alarms after waking up
 void rearmAlarms(){
   //Rearms alarm1
   if (testMinute1 == minute(t)) {
-      RTC.alarm(ALARM_1);
-      Serial.println("Slukker alarm 1");
-      delay(10);
-      RTC.setAlarm(ALM1_MATCH_HOURS,0,testMinute1,testHour1,0);
-      delay(10); 
+    RTC.alarm(ALARM_1);
+    Serial.println("Slukker alarm 1");
+    delay(10);
+    RTC.setAlarm(ALM1_MATCH_HOURS,0,testMinute1,testHour1,0);
+    delay(10); 
   }
   //Rearms alarm2
   if (testMinute2 == minute(t)) {
