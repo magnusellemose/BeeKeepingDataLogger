@@ -1,25 +1,20 @@
 //Transmitter
 
-/////////////--- Place for varibles to change 
+//========================Variables to be set for each individual Arduino========================//
 const int transmitterId = 1; 
+
 //The address of the transmitter
 //TODO: is it really necessary to have this here?
 const byte transmitterAddress[5] = {'R','x','A','A','A'};
 
-// for testing, hours and minutes can be set here
-int testHour1 = 14;
-//int testHour2 = 14;
-int testMinute1 = 1;
-int testMinute2 = 2;
+const int noOfAlarms = 3;
+int alarmHours[noOfAlarms] = {9,12,16};
 
-//Sets the hours and minutes for the alarms
-//int hour1 = 12;
-//int hour2 = 16;
-//int minute1 = 0;
-//int minute2 = 0;
+//The amount of DHT sensors, used for flow control and to calculate average temperature
+const int noOfDhtSensors = 1;
+int dhtPins[noOfDhtSensors] = {3};
 
-
-//////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////
 // RTC includes
 #include <DS3232RTC.h>
 #include <avr/sleep.h>
@@ -35,24 +30,29 @@ int testMinute2 = 2;
 //NRF definitions
 #define CE_PIN  9
 #define CSN_PIN 10
-//DHT definitions
-#define DHTPIN 3 
-#define DHTTYPE DHT11 
 
-DHT dht(DHTPIN, DHTTYPE);
+
+//All DHT sensors should be defined here, use pin number from the dhtPins-array and DHT11/DHT22 
+DHT dht1(dhtPins[0], DHT11);
+
+//All DHT sensors are put in an array, used to call methods on each variable in a loop
+DHT dhtArray[noOfDhtSensors] = {dht1};
+
+
 RF24 radio(CE_PIN, CSN_PIN); // Create a Radio
 
 //The array used for received data
 char dataToSend[9]; 
 //char testDataToSend = {'0','1','+','0','7','5','0','7','3'};
 
-//time_t variable used when sleeping and rearming alarms
+//time_t variable used for testing purposes during sleep and wake up
  time_t t;
 
+int nextAlarm = 0;
 
 void setup() {
   //DHT setup
-  dht.begin();
+  dht1.begin();
 
   //RFC setup
   pinMode(3,OUTPUT);
@@ -61,26 +61,14 @@ void setup() {
   pinMode(7,OUTPUT); // NRF trnsistor pin
 
   //Initiates the Alarms, and refreshes them. 
+  //TODO: All of this alarm stuff (except pinmode) can maybe be deleted and only call armNextAlarm?
   pinMode(interruptPin,INPUT_PULLUP);
   RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
-  RTC.setAlarm(ALM2_MATCH_DATE, 0, 0, 0, 1);
   RTC.alarm(ALARM_1);
-  RTC.alarm(ALARM_2);
   RTC.alarmInterrupt(ALARM_1, false);
-  RTC.alarmInterrupt(ALARM_2, false);
   RTC.squareWave(SQWAVE_NONE);
-  
-  // Arms alarm 1 
-  RTC.setAlarm(ALM1_MATCH_HOURS,0,testMinute1,testHour1,0);
-  RTC.alarm(ALARM_1);
-  RTC.squareWave(SQWAVE_NONE);
-  RTC.alarmInterrupt(ALARM_1, true);
 
-  // Arms Alarm 2
-  RTC.setAlarm(ALM2_MATCH_HOURS,0,testMinute2,testHour1,0);
-  RTC.alarm(ALARM_2);
-  RTC.squareWave(SQWAVE_NONE);
-  RTC.alarmInterrupt(ALARM_2, true); 
+  armNextAlarm();
 }
 
 void loop() {
@@ -92,7 +80,7 @@ void loop() {
     
   sleepAndWakeUp();
 
-  rearmAlarms();
+  armNextAlarm();
 }
 
 //========================User defined methods========================//
@@ -117,8 +105,8 @@ void initiateNRF(){
 
 //Measures humidity and temperature and converts them into the format expected from the receiver:
 void measureAndSaveToArray(){
-  int hum = dht.readHumidity();
-  float temp = dht.readTemperature();
+  int hum = calculateAverageHumidity();
+  float temp = calculateAverageTemperature();
 
   //converting id, humidity and temperature to strings to format them into array
   String tId = String(transmitterId);
@@ -217,23 +205,16 @@ void sleepAndWakeUp(){
   Serial.println("Vågen nu, klokken er: "+String(hour(t))+":"+String(minute(t))+":"+String(second(t)));
 }
 
-//Rearms the alarms after waking up
-void rearmAlarms(){
-  //Rearms alarm1
-  if (testMinute1 == minute(t)) {
-    RTC.alarm(ALARM_1);
-    Serial.println("Slukker alarm 1");
-    delay(10);
-    RTC.setAlarm(ALM1_MATCH_HOURS,0,testMinute1,testHour1,0);
-    delay(10); 
-  }
-  //Rearms alarm2
-  if (testMinute2 == minute(t)) {
-    RTC.alarm(ALARM_2);
-    Serial.println("Slukker alarm 2");
-    delay(10);
-    RTC.setAlarm(ALM2_MATCH_HOURS,0,testMinute2,testHour1,0);
-    delay(10);
+//function that sets an arbitraty amount of alarms, the alarms are defined at the top
+void armNextAlarm(){
+  RTC.setAlarm(ALM1_MATCH_HOURS,(transmitterId*5-5),0,alarmHours[nextAlarm],0);
+  RTC.alarm(ALARM_1);
+  RTC.squareWave(SQWAVE_NONE);
+  RTC.alarmInterrupt(ALARM_1, true); 
+
+  nextAlarm++;
+  if(nextAlarm == noOfAlarms){
+    nextAlarm = 0;
   }
 }
 
@@ -243,4 +224,27 @@ void interrupt(){
   sleep_disable();//Disable sleep mode
   detachInterrupt(0); //Removes the interrupt from pin 2;
   delay(1000);
+}
+
+
+int calculateAverageHumidity(){
+  float tempHumidity = 0;
+  for(int i = 0; i < noOfDhtSensors; i++){
+    tempHumidity = tempHumidity + dhtArray[i].readHumidity();
+  }
+
+  int humidityToReturn = tempHumidity / noOfDhtSensors;
+  
+  return humidityToReturn;
+}
+
+float calculateAverageTemperature(){
+  float tempTemperature = 0;
+  for(int i = 0; i < noOfDhtSensors; i++){
+    tempTemperature = tempTemperature + dhtArray[i].readTemperature();
+  }
+
+  float temperatureToReturn = tempTemperature / noOfDhtSensors;
+  
+  return temperatureToReturn;
 }
