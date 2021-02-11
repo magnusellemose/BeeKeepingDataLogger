@@ -1,6 +1,6 @@
 //Receiver 
 
-/////////////--- Place for varibles to change 
+/////////////--- Place for varibles that should be set for each individual receiver
 //The ID of the transceiver
 const int receiverId = 1;
 
@@ -8,10 +8,17 @@ const int receiverId = 1;
 const int connTrans = 1;
 
 // arrays in an array: datatype arrayname[x][y]
-const byte transmitterAddresses[5][connTrans] = {'R','x','A','A','A'};
-
+const byte transmitterAddresses[connTrans][5] = {{'R','x','A','A','A'}};
 
 //////////////////////////////////////////////////////////
+
+struct DATA {
+  int id;
+  int avgHumidity;
+  float avgTemperature;
+  int errorCode;
+};
+
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
@@ -20,23 +27,21 @@ const byte transmitterAddresses[5][connTrans] = {'R','x','A','A','A'};
 #define CSN_PIN 10
 RF24 radio(CE_PIN, CSN_PIN);
 
-//The array used for the received data
-char drArray[9][connTrans]; 
-//char testDataReceived[9] = {'0','1','+','0','7','5','0','7','3'};
+//Temporary DATA-struct variable used during the radio.read function
+DATA receivedData = {0,0,0,0};
+
+//Array containing all received data, placed in DATA-structs
+DATA receivedDataArray[connTrans];
 
 //variables for flow control
-int drCounter = 0;
+int receivedDataCounter = 0;
 bool receivedAllData = false;
 
-//temporary arrays to be used when parsing the received data
-// char idArray[2];
-char tempArray[5];
-char humArray[3];
-
-//variables to be used when the data has to be written in the Excel-file
+//Temporary variables to be used when the data has to be written to Excel Data Streamer
 int id;
-double temp;
 int hum;
+float temp;
+int errorCode;
 
 void setup() {
   Serial.begin(9600);
@@ -55,7 +60,7 @@ void loop() {
   getData();
 
   if(receivedAllData){
-    showData();
+    printDataToExcelDataStreamer();
   }
   
   //delay only used for testing purposes
@@ -65,65 +70,66 @@ void loop() {
 
 //========================User defined methods========================//
 
-
 //checks if there is new data. If yes, reads the data and sets newData to true.
 void getData(){
   if ( radio.available() ) {
-    radio.read( &drArray[drCounter], sizeof(drArray) );
-    drCounter++;
+    //Read data is placed in a temporary variable because of how the radio.read function works
+    radio.read( &receivedData, sizeof(receivedData) );
+    
+    //Adds the received data to an array to be used when printing the data
+    receivedDataArray[connTrans] = {receivedData.id, receivedData.avgHumidity, receivedData.avgTemperature, receivedData.errorCode};
+
+    //Resetting receivedData-variable and incrementing receivedDataCounter
+    receivedData = {0,0,0,0};
+    receivedDataCounter++;
   }
 
-  //if all expected data is received, reset pointer
-  if(drCounter == connTrans){
-    drCounter = 0;
+  //if all expected data is received, reset pointer and be ready to print the data
+  if(receivedDataCounter == connTrans){
+    receivedDataCounter = 0;
     receivedAllData = true;
   }
 }
 
 //The received data is parsed and shown in an Excel-file
-void showData(){
-  for(int i = 0; i < sizeof(drArray); i++){
-    //Serial.print(DParsing the array: ");
-    //Serial.print(drArray[i]);
+//TODO: change the Serial.prints to print according to how it should be set up in the Excel Data Streamer
+void printDataToExcelDataStreamer(){
+  for(int i = 0; i < connTrans; i++){
     Serial.print("DATA,DATE,TIME");
     Serial.print(",");
-  
-    //Assigns received id to an array and prints it
-    char idArray[2];
-    idArray[0] = drArray[0][i];
-    idArray[1] = drArray[1][i];
-    //Serial.print("ID: ");
-    id = atoi(idArray);
+
+    //Local variable used to extract data from the receivedData-array
+    DATA tempData = receivedDataArray[i];
+    
+    //Extracts the received ID and prints it
+    id = tempData.id;
     Serial.print(id);
     Serial.print(",");
-  
-    //Assigns received temperature to an array and prints it
-    tempArray[0] = drArray[2][i];
-    tempArray[1] = drArray[3][i];
-    tempArray[2] = drArray[4][i];
-    tempArray[3] = '.';
-    tempArray[4] = drArray[5][i];
-    //Serial.print("Temperature: ");
-    temp = atof(tempArray);
-    Serial.print(temp); Serial.print(",");
 
-    //Assigns received humidity to an array and prints it
-    humArray[0] = drArray[6][i];
-    humArray[1] = drArray[7][i];
-    humArray[2] = drArray[8][i]; 
-    //Serial.print("Humidity: ");
-    hum = atoi(humArray);  Serial.println(hum);
-    //Serial.println();
-    }
+    //Extracts the received average humidity and prints it
+    hum = tempData.avgHumidity;
+    Serial.print(hum);
+    Serial.print(",");
+    
+    //Extracts the received average temperature and prints it
+    temp = tempData.avgTemperature;
+    Serial.print(temp); 
+    Serial.print(",");
+  }
+   
   
   //get ready to receive data again
   receivedAllData = false;
-  //Resetting all data in drArray (replacing existing data with '0'
-  memset(drArray, '0', sizeof(drArray));
+
+  //Resetting the data of the receivedData-struct by setting all values to 0
+  for(int i = 0; i < connTrans; i++){
+    receivedDataArray[i] = {0,0,0,0};
+  }
 }
 
+//Opens the reading pipe for all transmitters that send data to this receiver
 void openPipesForReading(){
-  for(int i = 0; i < sizeof(transmitterAddresses); i++){
+  for(int i = 0; i < connTrans; i++){
     radio.openReadingPipe(i, transmitterAddresses[i]);
   }
   radio.startListening();

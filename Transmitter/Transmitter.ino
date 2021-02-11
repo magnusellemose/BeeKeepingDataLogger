@@ -15,6 +15,14 @@ const int noOfDhtSensors = 1;
 int dhtPins[noOfDhtSensors] = {3};
 
 /////////////////////////////////////////////////////////////////////////////////
+//Struct used to group all the data that is sent
+struct DATA {
+  int id;
+  int avgHumidity;
+  float avgTemperature;
+  int errorCode;
+};
+
 // RTC includes
 #include <DS3232RTC.h>
 #include <avr/sleep.h>
@@ -42,8 +50,7 @@ DHT dhtArray[noOfDhtSensors] = {dht1};
 RF24 radio(CE_PIN, CSN_PIN); // Create a Radio
 
 //The array used for received data
-char dataToSend[9]; 
-//char testDataToSend = {'0','1','+','0','7','5','0','7','3'};
+DATA dataToSend = {transmitterId,0,0,0}; 
 
 //time_t variable used for testing purposes during sleep and wake up
  time_t t;
@@ -60,21 +67,17 @@ void setup() {
   Serial.begin(9600);
   pinMode(7,OUTPUT); // NRF trnsistor pin
 
-  //Initiates the Alarms, and refreshes them. 
-  //TODO: All of this alarm stuff (except pinmode) can maybe be deleted and only call armNextAlarm?
+  //Initializes the interrupt pin
   pinMode(interruptPin,INPUT_PULLUP);
-  RTC.setAlarm(ALM1_MATCH_DATE, 0, 0, 0, 1);
-  RTC.alarm(ALARM_1);
-  RTC.alarmInterrupt(ALARM_1, false);
-  RTC.squareWave(SQWAVE_NONE);
 
+  //Arms the first alarm
   armNextAlarm();
 }
 
 void loop() {
   initiateNRF();
     
-  measureAndSaveToArray();
+  measureAndCalculateAverageTempAndHum();
     
   send();
     
@@ -103,82 +106,24 @@ void initiateNRF(){
   delay(10);
 }
 
-//Measures humidity and temperature and converts them into the format expected from the receiver:
-void measureAndSaveToArray(){
+//Measures the average humidity and temperature and saves those data in the dataToSend-struct
+void measureAndCalculateAverageTempAndHum(){
   int hum = calculateAverageHumidity();
   float temp = calculateAverageTemperature();
 
-  //converting id, humidity and temperature to strings to format them into array
-  String tId = String(transmitterId);
-  String tHum = String(hum);
-  String tTemp = String(temp);
-  
-  //Formatting transmitter id into array
-  if(transmitterId < 10){
-    dataToSend[0] = '0';
-    dataToSend[1] = tId[0];
-  }
-  else{
-    dataToSend[0] = tId[0];
-    dataToSend[1] = tId[1];
-  }
-
-  //Formatting temperature into array
-  if(temp >= 0){
-    dataToSend[2] = '+';
-  }
- 
-  if(temp < 100 && temp >= 10){
-    dataToSend[3] = tTemp[0];
-    dataToSend[4] = tTemp[1];
-    dataToSend[5] = tTemp[3];
-  }
-  else if(temp < 10 && temp > 0){
-    dataToSend[3] = '0';
-    dataToSend[4] = tTemp[0];
-    dataToSend[5] = tTemp[2];
-  }
-  else if(temp < 0 && temp > -10){
-    dataToSend[2] = tTemp[0];
-    dataToSend[3] = '0';
-    dataToSend[4] = tTemp[1];
-    dataToSend[5] = tTemp[3];
-  }
-  else if(temp < -10){
-    dataToSend[2] = tTemp[0];
-    dataToSend[3] = tTemp[1];
-    dataToSend[4] = tTemp[2];
-    dataToSend[5] = tTemp[5];
-  }
-
-  //formatting humidity into array
-  if(hum < 100){
-    dataToSend[6] = '0';
-  }
-  else{
-     dataToSend[6] = '1';
-     dataToSend[7] = '0';
-     dataToSend[8] = '0';
-  }
-  
-  if(hum < 10){
-    dataToSend[7] = '0';
-    dataToSend[8] = tHum[0];
-  }
-  else{
-    dataToSend[7] = tHum[0];
-    dataToSend[8] = tHum[1];
-  }
+  dataToSend.avgHumidity = hum;
+  dataToSend.avgTemperature = temp;
 }
 
 //tries to send the dataToSend
 void send() {
   bool succeded = radio.write( &dataToSend, sizeof(dataToSend) );
-  Serial.print("Data Sent, sent the array: ");
-  Serial.print(dataToSend);
     
   if (succeded) {
       Serial.println("  Acknowledgement received, data sent succesfully");
+      dataToSend.avgHumidity = 0;
+      dataToSend.avgTemperature = 0;
+      dataToSend.errorCode = 0;
   }
   else {
       Serial.println("  Tx failed");
@@ -226,7 +171,7 @@ void interrupt(){
   delay(1000);
 }
 
-
+//Measures the humidity of all connected DHT sensors and returns an average
 int calculateAverageHumidity(){
   float tempHumidity = 0;
   for(int i = 0; i < noOfDhtSensors; i++){
@@ -238,6 +183,7 @@ int calculateAverageHumidity(){
   return humidityToReturn;
 }
 
+//Measures the temperature of all connected DHT sensors and returns an average
 float calculateAverageTemperature(){
   float tempTemperature = 0;
   for(int i = 0; i < noOfDhtSensors; i++){
