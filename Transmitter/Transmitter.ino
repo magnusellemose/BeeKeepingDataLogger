@@ -3,15 +3,16 @@
 //========================Variables to be set for each individual Arduino========================//
 const int transmitterId = 1; 
 
-//The address of the transmitter
-//TODO: is it really necessary to have this here?
+//The address of the transmitter used when opening writing pipe
 const byte transmitterAddress[5] = {'R','x','A','A','A'};
 
 const int noOfAlarms = 3;
-int alarmHours[noOfAlarms] = {9,12,16};
+int alarmHours[noOfAlarms] = {9,12,16}; //Reads temperature and humidity at 9, 12 and 16 o'clock
 
 //The amount of DHT sensors, used for flow control and to calculate average temperature
 const int noOfDhtSensors = 1;
+
+//Array containing the pin numbers that the DHT sensors are connected at
 int dhtPins[noOfDhtSensors] = {3};
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +24,7 @@ struct DATA {
   int errorCode;
 };
 
+//Included libraries
 // RTC includes
 #include <DS3232RTC.h>
 #include <avr/sleep.h>
@@ -33,28 +35,25 @@ struct DATA {
 //DHT includes
 #include "DHT.h"
 
-
 #define interruptPin 2 
 //NRF definitions
 #define CE_PIN  9
 #define CSN_PIN 10
 
 
-//All DHT sensors should be defined here, use pin number from the dhtPins-array and DHT11/DHT22 
+//All DHT sensors should be defined here, use pin number from the dhtPins-array and DHT11/DHT22 (depending on which type of DHT sensor is connected)
 DHT dht1(dhtPins[0], DHT11);
 
-//All DHT sensors are put in an array, used to call methods on each variable in a loop
+//All DHT sensors are put in an array, used to call methods on each variable in a for-loop
 DHT dhtArray[noOfDhtSensors] = {dht1};
 
+// Radio is created
+RF24 radio(CE_PIN, CSN_PIN); 
 
-RF24 radio(CE_PIN, CSN_PIN); // Create a Radio
-
-//The array used for received data
+//The DATA-struct variable used to group data to be sent
 DATA dataToSend = {transmitterId,0,0,0}; 
 
-//time_t variable used for testing purposes during sleep and wake up
- time_t t;
-
+//Counter used when arming the alarms
 int nextAlarm = 0;
 
 void setup() {
@@ -65,37 +64,42 @@ void setup() {
   pinMode(3,OUTPUT);
   digitalWrite(3,HIGH);
   Serial.begin(9600);
-  pinMode(7,OUTPUT); // NRF trnsistor pin
+  pinMode(7,OUTPUT); // NRF transistor pin
 
   //Initializes the interrupt pin
   pinMode(interruptPin,INPUT_PULLUP);
-
-  //Arms the first alarm
-  armNextAlarm();
 }
 
 void loop() {
-  initiateNRF();
-    
-  measureAndCalculateAverageTempAndHum();
-    
-  send();
-    
-  sleepAndWakeUp();
-
+  //The next alarm is armed
   armNextAlarm();
+
+  //NRF is initialized
+  initiateNRF();
+
+  //Average temperature and humidity is measured
+  measureAndCalculateAverageTempAndHum();
+
+  //The Arduino tries to send the data
+  send();
+
+  //The Arduino is put to sleep and the interrupt is set
+  //When interrupt is fired, the Arduino is woken up and continues the loop() 
+  sleepAndSetInterrupt();
 }
 
 //========================User defined methods========================//
 
 
-//Initiates the NRF chip, has to be done every time before sending the data
-//Also starts the interruptpin (pin 7)
+//Initiates the NRF chip, has to be done every time before sending the data 
+//Doing this every time redices the amount of errors, could perhaps be improved later on
 void initiateNRF(){
   Serial.println("SimpleTx Starting");
-  digitalWrite(7,HIGH);
+  //Starts the interrupt pin
+  digitalWrite(7,HIGH); 
   delay(10);
-    
+
+  //Initialize radio properties and opens the writing pipe
   radio.begin();
   radio.flush_tx();
   radio.setAutoAck(true);
@@ -106,6 +110,7 @@ void initiateNRF(){
   delay(10);
 }
 
+
 //Measures the average humidity and temperature and saves those data in the dataToSend-struct
 void measureAndCalculateAverageTempAndHum(){
   int hum = calculateAverageHumidity();
@@ -114,6 +119,7 @@ void measureAndCalculateAverageTempAndHum(){
   dataToSend.avgHumidity = hum;
   dataToSend.avgTemperature = temp;
 }
+
 
 //tries to send the dataToSend
 void send() {
@@ -131,7 +137,7 @@ void send() {
 }
 
 //Sets the interrupt, puts the transmitter to sleep and handles the waking up 
-void sleepAndWakeUp(){
+void sleepAndSetInterrupt(){
   sleep_enable();
   
   //Attaches the interrupt
@@ -139,15 +145,13 @@ void sleepAndWakeUp(){
 
   //Puts transmitter to sleep
   set_sleep_mode(SLEEP_MODE_PWR_DOWN); 
-  t=RTC.get();
-  Serial.println("Sover nu, klokken er: "+String(hour(t))+":"+String(minute(t))+":"+String(second(t)));
-  digitalWrite(7,LOW); // Turns off the transistor to the NRF chip
-  delay(1000); //gives time for everything to turn off before the transmitter is put to sleep
-  sleep_cpu();
 
-  //Prints the time when the sleep process is interrupted and the transmitter wakes up
-  t=RTC.get();
-  Serial.println("Vågen nu, klokken er: "+String(hour(t))+":"+String(minute(t))+":"+String(second(t)));
+  // Turns off the transistor to the NRF chip
+  digitalWrite(7,LOW); 
+  
+  //Delay set to give everything time to power down before the Arduino is put to sleep.
+  delay(1000); 
+  sleep_cpu();
 }
 
 //function that sets an arbitraty amount of alarms, the alarms are defined at the top
@@ -157,27 +161,32 @@ void armNextAlarm(){
   RTC.squareWave(SQWAVE_NONE);
   RTC.alarmInterrupt(ALARM_1, true); 
 
+  //If last alarm in the array has been used, reset and arm the first alarm in the array
   nextAlarm++;
   if(nextAlarm == noOfAlarms){
     nextAlarm = 0;
   }
 }
 
-//used to interrupt the sleeping process 
+//Interrupt handler, wakes up the arduino when the interrupt is fired.
 void interrupt(){
-  Serial.println("Interrrupt Fired");
-  sleep_disable();//Disable sleep mode
-  detachInterrupt(0); //Removes the interrupt from pin 2;
-  delay(1000);
+  //Disable sleep mode
+  sleep_disable();
+  
+  //Removes the interrupt from pin 2;
+  detachInterrupt(0); 
 }
 
 //Measures the humidity of all connected DHT sensors and returns an average
 int calculateAverageHumidity(){
   float tempHumidity = 0;
+  
+  //Looping through all sensors and measures humidity
   for(int i = 0; i < noOfDhtSensors; i++){
     tempHumidity = tempHumidity + dhtArray[i].readHumidity();
   }
 
+  //Calculating average
   int humidityToReturn = tempHumidity / noOfDhtSensors;
   
   return humidityToReturn;
@@ -186,10 +195,13 @@ int calculateAverageHumidity(){
 //Measures the temperature of all connected DHT sensors and returns an average
 float calculateAverageTemperature(){
   float tempTemperature = 0;
+
+  //Looping through all sensors and measures temperature
   for(int i = 0; i < noOfDhtSensors; i++){
     tempTemperature = tempTemperature + dhtArray[i].readTemperature();
   }
 
+  //Calculating average
   float temperatureToReturn = tempTemperature / noOfDhtSensors;
   
   return temperatureToReturn;

@@ -45,11 +45,8 @@ int errorCode;
 
 void setup() {
   Serial.begin(9600);
-  // Clears all saved data in excel. 
-  //Serial.println("CLEARDATA");
-  Serial.println("LABEL,DATE,TIME,ID,TEMPERATURE,HUMIDITY");
     
-  //Serial.println("SimpleRx Starting");
+  //Initialize radio and open reading pipes
   radio.begin();
   radio.setDataRate( RF24_250KBPS );
   openPipesForReading();
@@ -92,13 +89,9 @@ void getData(){
 }
 
 //The received data is parsed and shown in an Excel-file
-//TODO: change the Serial.prints to print according to how it should be set up in the Excel Data Streamer
 void printDataToExcelDataStreamer(){
   for(int i = 0; i < connTrans; i++){
-    Serial.print("DATA,DATE,TIME");
-    Serial.print(",");
-
-    //Local variable used to extract data from the receivedData-array
+    //Local variable used to extract data from the receivedData-object
     DATA tempData = receivedDataArray[i];
     
     //Extracts the received ID and prints it
@@ -114,9 +107,8 @@ void printDataToExcelDataStreamer(){
     //Extracts the received average temperature and prints it
     temp = tempData.avgTemperature;
     Serial.print(temp); 
-    Serial.print(",");
+    Serial.println();
   }
-   
   
   //get ready to receive data again
   receivedAllData = false;
