@@ -61,7 +61,7 @@ void loop() {
   }
   
   //delay only used for testing purposes
-  delay(5000);
+  //delay(5000);
 }
 
 
