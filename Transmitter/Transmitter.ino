@@ -15,6 +15,12 @@ const int noOfDhtSensors = 1;
 //Array containing the pin numbers that the DHT sensors are connected at
 int dhtPins[noOfDhtSensors] = {3};
 
+//All DHT sensors should be defined here, use pin number from the dhtPins-array and DHT11/DHT22 (depending on which type of DHT sensor is connected)
+DHT dht1(dhtPins[0], DHT11);
+
+//All DHT sensors are put in an array, used to call methods on each variable in a for-loop
+DHT dhtArray[noOfDhtSensors] = {dht1};
+
 /////////////////////////////////////////////////////////////////////////////////
 //Struct used to group all the data that is sent
 struct DATA {
@@ -41,12 +47,6 @@ struct DATA {
 #define CSN_PIN 10
 
 
-//All DHT sensors should be defined here, use pin number from the dhtPins-array and DHT11/DHT22 (depending on which type of DHT sensor is connected)
-DHT dht1(dhtPins[0], DHT11);
-
-//All DHT sensors are put in an array, used to call methods on each variable in a for-loop
-DHT dhtArray[noOfDhtSensors] = {dht1};
-
 // Radio is created
 RF24 radio(CE_PIN, CSN_PIN); 
 
@@ -58,7 +58,9 @@ int nextAlarm = 0;
 
 void setup() {
   //DHT setup
-  dht1.begin();
+  for(int i = 0; i < noOfDhtSensors; i++){
+    dhtArray[i].begin();
+  }
 
   //RFC setup
   pinMode(3,OUTPUT);
