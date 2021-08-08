@@ -1,6 +1,7 @@
 import serial
 import requests
 import json
+import os
 
 # global variables
 # perhaps some variables should be moved to a config file?
@@ -17,8 +18,11 @@ dec_vals_list = ser_vals.split(',')
 # read and compare incremented value
 #if num.txt doesn't exist, create new file and add the appropriate number
 saved_counter = -1
-#with open('num.txt') as f:
-#    int(f.readline, saved_counter)
+dir_path = os.path.dirname(os.path.realpath(__file__))
+with open(dir_path, "r+") as f:
+    print("entered 'open num.txt' block")
+    saved_counter = int(f.readline)
+    print("Saved counter is: {}".format(saved_counter))
 
 # for testing
 saved_counter = 0
